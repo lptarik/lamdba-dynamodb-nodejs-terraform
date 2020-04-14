@@ -1,0 +1,72 @@
+'use strict';
+
+const AWS = require('aws-sdk');
+
+AWS.config.loadFromPath('./config.json');
+
+var ec2 = new AWS.EC2({apiVersion: '2016-11-15'});
+
+ const writeToDb = (data, callback) => {
+    var ddb = new AWS.DynamoDB({apiVersion: '2012-08-10'});
+
+    var params = {
+        TableName: 'AWSDATA',
+        Item: {
+            'ID': {S: `${new Date()}`},
+            'vpcsInfo': {S: data.VpcId + ' -> ' + data.CidrBlock },
+            'subnetInfo' : {S: data.subnetInfo},
+        }
+    };
+
+    // Call DynamoDB to add the item to the table
+    ddb.putItem(params, function(err, data) {
+        if (err) {
+            console.log("Error", err);
+        } else {
+            console.log("Success", data);
+            callback(data);
+        }
+    });
+
+ }
+
+ exports.handler = async function(event) {
+    return new Promise((resolve, reject) => {
+
+        try{
+            ec2.describeVpcs(function(err, vpcsData) {
+                if (err) {
+                  console.log("Cannot retrieve a VPC", err);
+                } else {
+                    var { CidrBlock, VpcId } = vpcsData.Vpcs[0];
+
+                    ec2.describeSubnets(function(err, subnetData) {
+                        if (err) {
+                          console.log("Cannot retrieve a Subnet", err);
+                        } else {
+
+                            var subnetInfo = subnetData.Subnets.map((item, index) => {
+                                return `${item.SubnetId} -> ${item.CidrBlock}`; 
+                             }).join(' | ');
+
+                             writeToDb({
+                                 CidrBlock,
+                                 VpcId,
+                                 subnetInfo
+                             }, (data) => {
+                                resolve({
+                                    success: true,
+                                    data: data
+                                })
+                             });
+
+                           
+                        }
+                     });                
+                }
+             });
+        }catch(err){
+            reject(err);
+        }
+    });
+  }
