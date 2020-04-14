@@ -12,7 +12,3 @@ variable "table_name" {
   default = "AWSDATA"
 }
 
-variable "item_name" {
-  default = ["ID", "vpcsInfo", "subnetInfo" ]
-  
-}
